@@ -17,7 +17,10 @@ import {
   XCircle,
   AlertCircle,
   RefreshCw,
-  Building
+  Building,
+  ChevronLeft,
+  ChevronRight,
+  Filter
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -38,7 +41,12 @@ export default function AdminDashboard() {
   const [bookings, setBookings] = useState([]);
   const [lots, setLots] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Table search, status filter, and pagination state
   const [searchBooking, setSearchBooking] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'confirmed', 'completed', 'cancelled'
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
   
   // Lot Modal State
   const [showLotModal, setShowLotModal] = useState(false);
@@ -60,12 +68,16 @@ export default function AdminDashboard() {
   const [lotSlots, setLotSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+  useEffect(() => {
+    document.title = 'Admin Dashboard — SmartPark';
+  }, []);
+
   // Fetch dashboard stats, all bookings, and parking lots from backend
   const loadDashboardData = async () => {
     try {
       const [statsRes, bookingsRes, lotsRes] = await Promise.all([
         api.get('/admin/stats'),
-        api.get('/bookings?limit=50'),
+        api.get('/bookings?limit=100'),
         api.get('/lots')
       ]);
 
@@ -84,9 +96,18 @@ export default function AdminDashboard() {
     loadDashboardData();
   }, []);
 
-  // Save new parking lot or update existing lot
+  // Save new parking lot or update existing lot with input validation
   const handleSaveLot = async (e) => {
     e.preventDefault();
+    if (!lotForm.name.trim() || !lotForm.address.trim() || !lotForm.city.trim()) {
+      toast.error('Please fill in all required facility fields.');
+      return;
+    }
+    if (lotForm.pricePerHour <= 0) {
+      toast.error('Hourly rate must be greater than zero.');
+      return;
+    }
+
     try {
       if (editingLot) {
         await api.put(`/lots/${editingLot._id}`, lotForm);
@@ -144,14 +165,23 @@ export default function AdminDashboard() {
     }
   };
 
-  // Filter bookings table by search
+  // Filter bookings table by search query and status filter
   const filteredBookings = bookings.filter(b => {
-    const q = searchBooking.toLowerCase();
-    const ticketMatch = b.ticketCode?.toLowerCase().includes(q);
-    const userMatch = b.user?.name?.toLowerCase().includes(q) || b.user?.email?.toLowerCase().includes(q);
-    const lotMatch = b.lot?.name?.toLowerCase().includes(q);
-    return ticketMatch || userMatch || lotMatch;
+    const q = searchBooking.toLowerCase().trim();
+    const ticketMatch = !q || b.ticketCode?.toLowerCase().includes(q);
+    const userMatch = !q || b.user?.name?.toLowerCase().includes(q) || b.user?.email?.toLowerCase().includes(q);
+    const lotMatch = !q || b.lot?.name?.toLowerCase().includes(q);
+    const statusMatch = statusFilter === 'all' || b.status === statusFilter;
+
+    return (ticketMatch || userMatch || lotMatch) && statusMatch;
   });
+
+  // Calculate pagination slice
+  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / itemsPerPage));
+  const paginatedBookings = filteredBookings.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -185,7 +215,7 @@ export default function AdminDashboard() {
             });
             setShowLotModal(true);
           }}
-          className="flex items-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all self-start sm:self-auto"
+          className="flex items-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md transition-all self-start sm:self-auto active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span>Add New Lot</span>
@@ -356,25 +386,46 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Recent Bookings Auditing Table */}
+      {/* Recent Bookings Auditing Table with Filter & Pagination */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-soft space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-white">
               Platform Reservations Auditing
             </h3>
-            <p className="text-xs text-slate-500">Live booking logs, users, and ticket codes</p>
+            <p className="text-xs text-slate-500">Live booking logs, users, and ticket codes ({filteredBookings.length} results)</p>
           </div>
 
-          <div className="relative max-w-xs w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={searchBooking}
-              onChange={(e) => setSearchBooking(e.target.value)}
-              placeholder="Search by ticket, user, or lot..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 focus:outline-none"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Status Filter */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold">
+              {['all', 'confirmed', 'completed', 'cancelled'].map((st) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => { setStatusFilter(st); setCurrentPage(1); }}
+                  className={`px-2.5 py-1 rounded-lg capitalize transition-all ${
+                    statusFilter === st
+                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                  }`}
+                >
+                  {st}
+                </button>
+              ))}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative max-w-xs w-full">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchBooking}
+                onChange={(e) => { setSearchBooking(e.target.value); setCurrentPage(1); }}
+                placeholder="Search ticket, user, or lot..."
+                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs bg-slate-50 dark:bg-slate-800 focus:outline-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -392,41 +443,77 @@ export default function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-              {filteredBookings.slice(0, 15).map((b) => (
-                <tr key={b._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                    {b.ticketCode}
-                  </td>
-                  <td className="py-3 px-3 text-slate-800 dark:text-slate-200">
-                    <div>{b.user?.name || 'Driver'}</div>
-                    <div className="text-[10px] text-slate-400">{b.user?.email}</div>
-                  </td>
-                  <td className="py-3 px-3 text-slate-800 dark:text-slate-200">
-                    {b.lot?.name || 'Lot'}
-                  </td>
-                  <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">
-                    {b.slot?.slotNumber || 'Slot'}
-                  </td>
-                  <td className="py-3 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-300">
-                    {b.vehicleNumber}
-                  </td>
-                  <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">
-                    ₹{b.totalAmount}
-                  </td>
-                  <td className="py-3 px-3">
-                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                      b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
-                      b.status === 'completed' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300' :
-                      'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
-                    }`}>
-                      {b.status}
-                    </span>
+              {paginatedBookings.length === 0 ? (
+                <tr>
+                  <td colSpan="7" className="py-8 text-center text-slate-400">
+                    No reservations matching current search and filter criteria.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedBookings.map((b) => (
+                  <tr key={b._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="py-3 px-3 font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      {b.ticketCode}
+                    </td>
+                    <td className="py-3 px-3 text-slate-800 dark:text-slate-200">
+                      <div>{b.user?.name || 'Driver'}</div>
+                      <div className="text-[10px] text-slate-400">{b.user?.email}</div>
+                    </td>
+                    <td className="py-3 px-3 text-slate-800 dark:text-slate-200">
+                      {b.lot?.name || 'Lot'}
+                    </td>
+                    <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">
+                      {b.slot?.slotNumber || 'Slot'}
+                    </td>
+                    <td className="py-3 px-3 font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                      {b.vehicleNumber}
+                    </td>
+                    <td className="py-3 px-3 font-bold text-slate-900 dark:text-white">
+                      ₹{b.totalAmount}
+                    </td>
+                    <td className="py-3 px-3">
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        b.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
+                        b.status === 'completed' ? 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300' :
+                        'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                      }`}>
+                        {b.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
+          <span className="text-slate-500">
+            Page {currentPage} of {totalPages}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
+            </button>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
       </div>
 
       {/* Add / Edit Lot Modal */}
@@ -550,7 +637,7 @@ export default function AdminDashboard() {
         title={`Slot Maintenance: ${selectedLotForSlots?.name}`}
         maxWidth="max-w-2xl"
       >
-        <div className="space-y-4 text-xs">
+        <div className="space-y-4 text-xs text-left">
           <p className="text-slate-500">
             Click on any slot to toggle its maintenance status. Gray slots cannot be reserved by drivers.
           </p>

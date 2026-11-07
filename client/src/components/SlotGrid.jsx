@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Car, Bike, Zap, Accessibility, Check, AlertCircle, Wrench } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 // Star feature: Interactive parking slot picker grid with real-time status and type filtering
 export default function SlotGrid({ slots = [], selectedSlotId, onSelectSlot, loading }) {
@@ -26,8 +27,21 @@ export default function SlotGrid({ slots = [], selectedSlotId, onSelectSlot, loa
     }
   };
 
+  // Handle slot click with feedback for booked or maintenance slots
+  const handleSlotClick = (slot) => {
+    if (slot.status === 'maintenance') {
+      toast.error(`Slot ${slot.slotNumber} is currently under maintenance.`);
+      return;
+    }
+    if (slot.isBooked) {
+      toast.error(`Slot ${slot.slotNumber} is already reserved for this time. Please pick a green spot.`);
+      return;
+    }
+    onSelectSlot(slot);
+  };
+
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-soft space-y-6">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-soft space-y-6">
       
       {/* Header and Legend */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
@@ -101,7 +115,6 @@ export default function SlotGrid({ slots = [], selectedSlotId, onSelectSlot, loa
             const isBooked = slot.isBooked;
             const isFree = !isBooked && !isMaintenance;
 
-            // Compute card color scheme
             let buttonStyle = 'bg-emerald-50 border-emerald-300 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-200 hover:scale-105 active:scale-95 cursor-pointer';
             let badgeBg = 'bg-emerald-500 text-white';
 
@@ -109,10 +122,10 @@ export default function SlotGrid({ slots = [], selectedSlotId, onSelectSlot, loa
               buttonStyle = 'bg-blue-600 border-blue-600 text-white shadow-lg ring-4 ring-blue-200 dark:ring-blue-900 scale-105 cursor-pointer';
               badgeBg = 'bg-white text-blue-700';
             } else if (isMaintenance) {
-              buttonStyle = 'bg-slate-100 border-slate-300 text-slate-400 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-500 cursor-not-allowed opacity-75';
+              buttonStyle = 'bg-slate-100 border-slate-300 text-slate-400 dark:bg-slate-800/60 dark:border-slate-700 dark:text-slate-500 opacity-75 hover:opacity-100 cursor-pointer';
               badgeBg = 'bg-slate-400 text-white';
             } else if (isBooked) {
-              buttonStyle = 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400 cursor-not-allowed opacity-80';
+              buttonStyle = 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/30 dark:border-rose-900 dark:text-rose-400 opacity-80 hover:opacity-100 cursor-pointer';
               badgeBg = 'bg-rose-500 text-white';
             }
 
@@ -120,8 +133,7 @@ export default function SlotGrid({ slots = [], selectedSlotId, onSelectSlot, loa
               <button
                 key={slot._id}
                 type="button"
-                disabled={!isFree && !isSelected}
-                onClick={() => isFree && onSelectSlot(slot)}
+                onClick={() => handleSlotClick(slot)}
                 className={`relative flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all ${buttonStyle}`}
               >
                 {/* Status indicator pill */}

@@ -23,8 +23,7 @@ export const AuthProvider = ({ children }) => {
           setUser(res.data.user);
           localStorage.setItem('smartpark_user', JSON.stringify(res.data.user));
         } catch (err) {
-          console.warn('Session expired:', err.message);
-          logout(false);
+          // Handled by api interceptor
         }
       }
       setLoading(false);
@@ -89,13 +88,32 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Update local user state
-  const updateUser = (updatedFields) => {
-    setUser(prev => {
-      const updated = { ...prev, ...updatedFields };
-      localStorage.setItem('smartpark_user', JSON.stringify(updated));
-      return updated;
-    });
+  // Update profile in backend and local state
+  const updateProfile = async (profileData) => {
+    try {
+      const res = await api.put('/auth/profile', profileData);
+      setUser(res.data.user);
+      localStorage.setItem('smartpark_user', JSON.stringify(res.data.user));
+      toast.success('Profile updated successfully!');
+      return { success: true, user: res.data.user };
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to update profile.';
+      toast.error(msg);
+      return { success: false, message: msg };
+    }
+  };
+
+  // Change password with old password verification
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      await api.put('/auth/password', { currentPassword, newPassword });
+      toast.success('Password changed successfully!');
+      return { success: true };
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to change password.';
+      toast.error(msg);
+      return { success: false, message: msg };
+    }
   };
 
   const isAdmin = user?.role === 'admin';
@@ -111,7 +129,8 @@ export const AuthProvider = ({ children }) => {
         register,
         demoLogin,
         logout,
-        updateUser
+        updateProfile,
+        changePassword
       }}
     >
       {children}

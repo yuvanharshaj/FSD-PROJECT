@@ -31,3 +31,4 @@ export default function StatCard({ title, value, icon: Icon, changeText, color =
     </div>
   );
 }
+

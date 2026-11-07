@@ -1,54 +1,87 @@
 const mongoose = require('mongoose');
 
-let mongoMemoryServer = null;
+// Global cache for serverless environments (e.g. Vercel)
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
 
-// Connect to MongoDB or fall back gracefully to in-memory database
+// Connect to MongoDB with connection caching and development in-memory fallback
 const connectDB = async () => {
-  const uri = process.env.MONGO_URI;
-
-  if (uri && uri.trim() !== '') {
-    try {
-      const conn = await mongoose.connect(uri, {
-        serverSelectionTimeoutMS: 3000
-      });
-      console.log(`Connected to MongoDB: ${conn.connection.host}`);
-      return conn;
-    } catch (err) {
-      console.warn(`Could not connect to external MongoDB at ${uri}: ${err.message}`);
-      console.log('Falling back to zero-setup in-memory database...');
-    }
-  } else {
-    console.log('No MONGO_URI provided in environment. Using in-memory database...');
+  if (cached.conn) {
+    return cached.conn;
   }
 
-  // Fallback to mongodb-memory-server
+  const uri = process.env.MONGO_URI;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // 1. Attempt connection with provided MONGO_URI
+  if (uri && uri.trim() !== '') {
+    if (!cached.promise) {
+      const opts = {
+        bufferCommands: false,
+        serverSelectionTimeoutMS: 5000
+      };
+      cached.promise = mongoose.connect(uri, opts).then((m) => {
+        console.log(`Connected to MongoDB Atlas / Database: ${m.connection.host}`);
+        return m;
+      });
+    }
+
+    try {
+      cached.conn = await cached.promise;
+      return cached.conn;
+    } catch (err) {
+      cached.promise = null;
+      console.error(`MongoDB connection error: ${err.message}`);
+      if (isProduction) {
+        throw new Error(`Production database connection failed: ${err.message}`);
+      }
+      console.log('Falling back to local in-memory database for development...');
+    }
+  } else if (isProduction) {
+    throw new Error('MONGO_URI is required in production environments. Please configure it in Vercel settings.');
+  }
+
+  // 2. Local development fallback using mongodb-memory-server
   try {
     const { MongoMemoryServer } = require('mongodb-memory-server');
-    mongoMemoryServer = await MongoMemoryServer.create();
-    const memoryUri = mongoMemoryServer.getUri();
+    if (!global.__MONGO_MEMORY_SERVER__) {
+      global.__MONGO_MEMORY_SERVER__ = await MongoMemoryServer.create();
+    }
+    const memoryUri = global.__MONGO_MEMORY_SERVER__.getUri();
 
-    const conn = await mongoose.connect(memoryUri);
+    cached.promise = mongoose.connect(memoryUri, { bufferCommands: false });
+    cached.conn = await cached.promise;
     console.log(`Connected to In-Memory MongoDB: ${memoryUri}`);
 
-    // Auto-seed in-memory database on start
-    const seedData = require('../seed');
-    await seedData();
-    console.log('Auto-seeded in-memory database with initial data.');
+    // Auto-seed in-memory database if empty
+    const ParkingLot = require('../models/ParkingLot');
+    const lotCount = await ParkingLot.countDocuments();
+    if (lotCount === 0) {
+      const seedData = require('../seed');
+      await seedData();
+      console.log('Auto-seeded development database with initial records.');
+    }
 
-    return conn;
+    return cached.conn;
   } catch (error) {
-    console.error('Failed to initialize in-memory database:', error);
-    process.exit(1);
+    console.error('Failed to initialize development database:', error);
+    throw error;
   }
 };
 
-// Disconnect Mongoose and stop in-memory server if running
+// Disconnect Mongoose and cleanly close memory server if running
 const disconnectDB = async () => {
-  await mongoose.disconnect();
-  if (mongoMemoryServer) {
-    await mongoMemoryServer.stop();
+  if (cached.conn) {
+    await mongoose.disconnect();
+    cached.conn = null;
+    cached.promise = null;
+  }
+  if (global.__MONGO_MEMORY_SERVER__) {
+    await global.__MONGO_MEMORY_SERVER__.stop();
+    global.__MONGO_MEMORY_SERVER__ = null;
   }
 };
 
 module.exports = { connectDB, disconnectDB };
-

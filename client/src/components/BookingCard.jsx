@@ -152,3 +152,4 @@ export default function BookingCard({ booking, onCancel, onViewTicket }) {
     </>
   );
 }
+

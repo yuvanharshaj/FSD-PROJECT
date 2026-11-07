@@ -52,9 +52,17 @@ const bookingSchema = new mongoose.Schema(
   }
 );
 
-// Index for efficient conflict checking and query performance
+// Indexes for conflict checking, user lookups, and fast querying
 bookingSchema.index({ slot: 1, status: 1, startTime: 1, endTime: 1 });
 bookingSchema.index({ user: 1, createdAt: -1 });
 
-module.exports = mongoose.model('Booking', bookingSchema);
+// Serverless-ready: Derive 'completed' status dynamically at serialization time when endTime has elapsed
+bookingSchema.methods.toJSON = function () {
+  const obj = this.toObject();
+  if (obj.status === 'confirmed' && new Date() >= new Date(obj.endTime)) {
+    obj.status = 'completed';
+  }
+  return obj;
+};
 
+module.exports = mongoose.model('Booking', bookingSchema);

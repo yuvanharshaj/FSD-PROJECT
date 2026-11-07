@@ -26,6 +26,7 @@ export default function Landing() {
 
   // Fetch featured parking lots on mount
   useEffect(() => {
+    document.title = 'SmartPark — Smart Parking Reservation & Management System';
     const fetchLots = async () => {
       try {
         const res = await api.get('/lots');
@@ -223,3 +224,4 @@ export default function Landing() {
     </div>
   );
 }
+

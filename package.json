@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
-    "start": "concurrently \"npm start --prefix server\" \"npm run dev --prefix client\"",
-    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "node server/src/index.js",
     "seed": "npm run seed --prefix server",
+    "backup": "npm run backup --prefix server",
+    "restore": "npm run restore --prefix server",
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
     "test:smoke": "npm run test:smoke --prefix server",
     "test:e2e": "node test-e2e.js"
   },

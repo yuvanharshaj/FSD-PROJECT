@@ -17,10 +17,8 @@ const checkOperatingHours = (start, end, openTime, closeTime) => {
   const endMin = end.getHours() * 60 + end.getMinutes();
 
   if (closeMin >= openMin) {
-    // Normal daytime schedule (e.g. 06:00 to 23:00)
     return startMin >= openMin && endMin <= closeMin;
   } else {
-    // Overnight operating schedule (e.g. 20:00 to 08:00)
     const isStartValid = startMin >= openMin || startMin <= closeMin;
     const isEndValid = endMin >= openMin || endMin <= closeMin;
     return isStartValid && isEndValid;
@@ -32,7 +30,25 @@ const generateTicketCode = () => {
   return 'SPK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 };
 
-// Create a new parking booking with validation rules
+// Lazily synchronize expired confirmed bookings to completed status without background cron
+const syncExpiredStatus = async (filter = {}) => {
+  try {
+    await Booking.updateMany(
+      {
+        ...filter,
+        status: 'confirmed',
+        endTime: { $lte: new Date() }
+      },
+      {
+        $set: { status: 'completed' }
+      }
+    );
+  } catch (err) {
+    // Non-blocking background sync error
+  }
+};
+
+// Create a new parking booking with validation rules and race-condition prevention
 const createBooking = async (req, res, next) => {
   try {
     const { lotId, slotId, vehicleNumber, startTime, endTime } = req.body;
@@ -108,7 +124,7 @@ const createBooking = async (req, res, next) => {
       });
     }
 
-    // Rule 5: Block overlapping bookings on the same slot
+    // Rule 5: Concurrency check - Block overlapping confirmed bookings on the same slot
     const overlapping = await Booking.findOne({
       slot: slotId,
       status: 'confirmed',
@@ -119,7 +135,7 @@ const createBooking = async (req, res, next) => {
     if (overlapping) {
       return res.status(409).json({
         success: false,
-        message: 'Slot is already booked for the selected time window. Please choose another slot or time.'
+        message: 'That spot was just taken, please pick another.'
       });
     }
 
@@ -156,6 +172,9 @@ const createBooking = async (req, res, next) => {
 // Retrieve all bookings belonging to the currently authenticated user
 const getMyBookings = async (req, res, next) => {
   try {
+    // Lazily sync expired bookings
+    await syncExpiredStatus({ user: req.user._id });
+
     const bookings = await Booking.find({ user: req.user._id })
       .populate('lot', 'name address city imageUrl pricePerHour')
       .populate('slot', 'slotNumber type')
@@ -201,7 +220,7 @@ const cancelBooking = async (req, res, next) => {
       });
     }
 
-    if (booking.status === 'completed') {
+    if (booking.status === 'completed' || new Date() >= new Date(booking.endTime)) {
       return res.status(400).json({
         success: false,
         message: 'Cannot cancel a completed booking.'
@@ -233,6 +252,8 @@ const cancelBooking = async (req, res, next) => {
 // Retrieve all bookings across the platform (Admin only)
 const getAllBookings = async (req, res, next) => {
   try {
+    await syncExpiredStatus();
+
     const { status, lotId, page = 1, limit = 50 } = req.query;
     const filter = {};
 
@@ -271,4 +292,3 @@ module.exports = {
   cancelBooking,
   getAllBookings
 };
-

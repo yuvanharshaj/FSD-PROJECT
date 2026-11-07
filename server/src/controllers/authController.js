@@ -102,10 +102,74 @@ const getMe = async (req, res, next) => {
   }
 };
 
+// Update name and vehicle license plate of the authenticated user
+const updateProfile = async (req, res, next) => {
+  try {
+    const { name, vehicleNumber } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (name) user.name = name.trim();
+    if (vehicleNumber !== undefined) user.vehicleNumber = vehicleNumber.trim().toUpperCase();
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Change user password by validating current password and hashing new password
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide both current and new passwords.'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters.'
+      });
+    }
+
+    const user = await User.findById(req.user.id).select('+password');
+    const isMatch = await user.matchPassword(currentPassword);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect.'
+      });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully!'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   generateToken,
   register,
   login,
-  getMe
+  getMe,
+  updateProfile,
+  changePassword
 };
 

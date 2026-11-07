@@ -34,3 +34,4 @@ export const ThemeProvider = ({ children }) => {
 
 // Custom hook to consume theme context
 export const useTheme = () => useContext(ThemeContext);
+

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -15,9 +15,14 @@ import {
   ArrowLeft,
   Sparkles,
   Printer,
-  Ticket
+  Download,
+  Ticket,
+  AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// Indian vehicle plate validation regex (supports KA01AB1234 or KA-01-AB-1234)
+const INDIAN_VEHICLE_REGEX = /^[A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{4}$/i;
 
 // Multi-step checkout and confirmation page with pre-filled vehicle details and demo payment options
 export default function BookingConfirm() {
@@ -25,8 +30,12 @@ export default function BookingConfirm() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  useEffect(() => {
+    document.title = 'Confirm Parking Booking — SmartPark';
+  }, []);
+
   const bookingState = location.state;
-  const [vehicleNumber, setVehicleNumber] = useState(user?.vehicleNumber || 'KA-04-MK-5566');
+  const [vehicleNumber, setVehicleNumber] = useState(user?.vehicleNumber || 'KA04MK5566');
   const [paymentMethod, setPaymentMethod] = useState('entry'); // 'entry', 'upi', 'card'
   const [submitting, setSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState(null);
@@ -50,8 +59,9 @@ export default function BookingConfirm() {
   const handleConfirmBooking = async (e) => {
     e.preventDefault();
 
-    if (!vehicleNumber.trim()) {
-      toast.error('Please enter your vehicle license plate number.');
+    const cleanVehicle = vehicleNumber.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (!INDIAN_VEHICLE_REGEX.test(cleanVehicle)) {
+      toast.error('Please enter a valid Indian vehicle number (e.g. KA01AB1234 or KA-04-MK-5566).');
       return;
     }
 
@@ -60,7 +70,7 @@ export default function BookingConfirm() {
       const res = await api.post('/bookings', {
         lotId: lot._id,
         slotId: slot._id,
-        vehicleNumber: vehicleNumber.trim().toUpperCase(),
+        vehicleNumber: cleanVehicle,
         startTime,
         endTime
       });
@@ -69,11 +79,39 @@ export default function BookingConfirm() {
       toast.success('Parking spot reserved successfully!');
     } catch (err) {
       console.error('Booking failed:', err);
-      const msg = err.response?.data?.message || 'Failed to complete booking. Slot may have been taken.';
-      toast.error(msg);
+      if (err.response?.status === 409) {
+        toast.error('That spot was just taken, please pick another.');
+      } else {
+        const msg = err.response?.data?.message || 'Failed to complete booking. Please try again.';
+        toast.error(msg);
+      }
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Download digital pass as a printable JSON ticket
+  const handleDownloadTicket = () => {
+    if (!confirmedBooking) return;
+    const ticketData = {
+      ticketCode: confirmedBooking.ticketCode,
+      facility: lot.name,
+      address: `${lot.address}, ${lot.city}`,
+      slot: slot.slotNumber,
+      vehicle: confirmedBooking.vehicleNumber,
+      startTime,
+      endTime,
+      totalAmount,
+      status: 'confirmed'
+    };
+    const blob = new Blob([JSON.stringify(ticketData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SmartPark-${confirmedBooking.ticketCode}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Parking ticket receipt downloaded!');
   };
 
   const startFormatted = new Date(startTime).toLocaleString('en-IN', {
@@ -116,19 +154,19 @@ export default function BookingConfirm() {
         /* STEP 2: Confirm & Pay Screen */
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-soft space-y-6">
           
-          <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="border-b border-slate-100 dark:border-slate-800 pb-4 text-left">
             <h2 className="text-xl font-black text-slate-900 dark:text-white">
               Confirm Your Parking Reservation
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Verify your vehicle details and select your preferred entry payment option.
+              Verify vehicle plate details and select your entry verification method.
             </p>
           </div>
 
           <form onSubmit={handleConfirmBooking} className="space-y-6">
             
             {/* Facility & Spot Overview */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 text-xs text-left">
               <div>
                 <span className="text-slate-400 block font-medium">Facility</span>
                 <span className="text-sm font-bold text-slate-900 dark:text-white">{lot.name}</span>
@@ -149,11 +187,11 @@ export default function BookingConfirm() {
               </div>
             </div>
 
-            {/* Vehicle Number Input */}
+            {/* Vehicle Number Input with Indian format hint */}
             <div className="space-y-1.5 text-left">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                 <span>Vehicle License Plate Number</span>
-                <span className="text-[11px] text-slate-400 font-normal">Auto-detected from profile</span>
+                <span className="text-[11px] text-slate-400 font-normal">e.g. KA01AB1234</span>
               </label>
               <div className="relative">
                 <Car className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
@@ -162,27 +200,30 @@ export default function BookingConfirm() {
                   required
                   value={vehicleNumber}
                   onChange={(e) => setVehicleNumber(e.target.value)}
-                  placeholder="e.g. KA-04-MK-5566"
+                  placeholder="KA01AB1234"
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+              <p className="text-[11px] text-slate-400">
+                Hint: Standard Indian vehicle registration (State code + RTO + Series + 4 digits).
+              </p>
             </div>
 
             {/* Demo Payment Selector */}
-            <div className="space-y-3">
+            <div className="space-y-3 text-left">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Select Payment Option
                 </label>
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                  DEMO MODE — NO CHARGE
+                  DEMO — NO CHARGE
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { id: 'entry', title: 'Pay at Entry', sub: 'Cash / Fastag' },
-                  { id: 'upi', title: 'Instant UPI', sub: 'GPay / PhonePe' },
+                  { id: 'entry', title: 'Pay at Entry', sub: 'Cash / Fastag Demo' },
+                  { id: 'upi', title: 'UPI / QR', sub: 'GPay / PhonePe Demo' },
                   { id: 'card', title: 'Card Demo', sub: 'Debit / Credit' }
                 ].map(({ id, title, sub }) => (
                   <button
@@ -191,7 +232,7 @@ export default function BookingConfirm() {
                     onClick={() => setPaymentMethod(id)}
                     className={`p-3 rounded-2xl border-2 text-left transition-all ${
                       paymentMethod === id
-                        ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200'
+                        ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 shadow-sm'
                         : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300'
                     }`}
                   >
@@ -203,7 +244,7 @@ export default function BookingConfirm() {
             </div>
 
             {/* Price Breakdown */}
-            <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl space-y-2 text-xs border border-slate-200 dark:border-slate-800">
+            <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl space-y-2 text-xs border border-slate-200 dark:border-slate-800 text-left">
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Parking Fare ({durationHours} hr × ₹{lot.pricePerHour}/hr)</span>
                 <span>₹{totalAmount}</span>
@@ -287,18 +328,27 @@ export default function BookingConfirm() {
             <button
               type="button"
               onClick={() => setShowPrintModal(true)}
-              className="flex items-center justify-center gap-2 py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow"
+              className="flex items-center justify-center gap-2 py-2.5 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow transition-all active:scale-95"
             >
               <Printer className="w-4 h-4" />
-              <span>Print / Save Pass</span>
+              <span>Print Pass</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadTicket}
+              className="flex items-center justify-center gap-2 py-2.5 px-5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all active:scale-95"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download JSON Receipt</span>
             </button>
 
             <Link
               to="/bookings"
-              className="flex items-center justify-center gap-2 py-2.5 px-5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold"
+              className="flex items-center justify-center gap-2 py-2.5 px-5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all active:scale-95"
             >
               <Ticket className="w-4 h-4" />
-              <span>View in My Bookings</span>
+              <span>My Bookings</span>
             </Link>
           </div>
 

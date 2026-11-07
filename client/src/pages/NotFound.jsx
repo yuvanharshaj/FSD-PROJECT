@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, Home } from 'lucide-react';
 
 // Friendly 404 error page displayed when an unknown route is accessed
 export default function NotFound() {
+  useEffect(() => {
+    document.title = '404 Page Not Found — SmartPark';
+  }, []);
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4 py-16 text-center">
       <div className="max-w-md space-y-6">
@@ -34,3 +37,4 @@ export default function NotFound() {
     </div>
   );
 }
+

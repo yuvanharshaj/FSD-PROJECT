@@ -28,6 +28,7 @@ export default function MyBookings() {
   };
 
   useEffect(() => {
+    document.title = 'My Parking Bookings — SmartPark';
     fetchMyBookings();
   }, []);
 
@@ -172,3 +173,4 @@ export default function MyBookings() {
     </div>
   );
 }
+

@@ -98,3 +98,4 @@ export default function LotCard({ lot, availableCount }) {
     </div>
   );
 }
+

@@ -47,6 +47,12 @@ export default function LotDetails() {
   const durationHours = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60)));
   const totalAmount = lot ? durationHours * lot.pricePerHour : 0;
 
+  useEffect(() => {
+    if (lot?.name) {
+      document.title = `${lot.name} — SmartPark Slot Reservation`;
+    }
+  }, [lot]);
+
   // Fetch parking lot details and slot availability
   const fetchSlotData = async (isBackground = false) => {
     if (isBackground) setRefreshing(true);
@@ -68,7 +74,7 @@ export default function LotDetails() {
         );
         if (!stillAvailable) {
           setSelectedSlot(null);
-          toast.error('The selected slot was just reserved by another driver. Please choose another.');
+          toast.error('That spot was just taken, please pick another.');
         }
       }
     } catch (err) {
@@ -94,7 +100,32 @@ export default function LotDetails() {
     return () => clearInterval(timer);
   }, [id, startTime, endTime, selectedSlot]);
 
-  // Quick duration chips handler
+  // Handle start time input with past time prevention
+  const handleStartTimeChange = (val) => {
+    const chosen = new Date(val);
+    const now = new Date();
+    if (chosen < now) {
+      toast.error('Start time must be in the future.');
+      return;
+    }
+    setStartTime(chosen);
+    // If end is before or equal to start, adjust end
+    if (endTime <= chosen) {
+      setEndTime(new Date(chosen.getTime() + 2 * 60 * 60 * 1000));
+    }
+  };
+
+  // Handle end time input
+  const handleEndTimeChange = (val) => {
+    const chosen = new Date(val);
+    if (chosen <= startTime) {
+      toast.error('End time must be after arrival time.');
+      return;
+    }
+    setEndTime(chosen);
+  };
+
+  // Quick duration chips handler (1 hr, 2 hrs, Half day)
   const setQuickDuration = (hours) => {
     const newEnd = new Date(startTime.getTime() + hours * 60 * 60 * 1000);
     setEndTime(newEnd);
@@ -201,7 +232,7 @@ export default function LotDetails() {
                 <input
                   type="datetime-local"
                   value={formatDateTimeInput(startTime)}
-                  onChange={(e) => setStartTime(new Date(e.target.value))}
+                  onChange={(e) => handleStartTimeChange(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -213,7 +244,7 @@ export default function LotDetails() {
                 <input
                   type="datetime-local"
                   value={formatDateTimeInput(endTime)}
-                  onChange={(e) => setEndTime(new Date(e.target.value))}
+                  onChange={(e) => handleEndTimeChange(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
@@ -225,8 +256,7 @@ export default function LotDetails() {
               {[
                 { label: '1 hour', hours: 1 },
                 { label: '2 hours', hours: 2 },
-                { label: 'Half day (4 hrs)', hours: 4 },
-                { label: 'Full day (8 hrs)', hours: 8 }
+                { label: 'Half day (4 hrs)', hours: 4 }
               ].map(({ label, hours }) => (
                 <button
                   key={hours}

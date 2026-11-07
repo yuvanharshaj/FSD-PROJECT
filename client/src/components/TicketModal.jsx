@@ -112,3 +112,4 @@ export default function TicketModal({ isOpen, onClose, booking }) {
     </Modal>
   );
 }
+

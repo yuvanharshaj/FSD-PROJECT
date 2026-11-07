@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
+const { connectDB } = require('./config/db');
 
 const authRoutes = require('./routes/authRoutes');
 const lotRoutes = require('./routes/lotRoutes');
@@ -15,38 +16,62 @@ const app = express();
 // Security headers with Helmet
 app.use(helmet());
 
-// Enable Cross-Origin Resource Sharing
-app.use(cors());
+// Cross-Origin Resource Sharing with CLIENT_URL whitelist support
+const clientOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map(url => url.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
 
-// Parse incoming JSON payloads with size limit
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl) or if origin is in whitelist
+      if (!origin || clientOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('Blocked by CORS policy'));
+      }
+    },
+    credentials: true
+  })
+);
+
+// Body parsers
 app.use(express.json({ limit: '10kb' }));
-
-// Parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true }));
 
-// Sanitize user-supplied data against NoSQL query injection
+// Sanitize user inputs against NoSQL injection
 app.use(mongoSanitize());
 
-// Rate limiter to prevent brute force and abuse
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Limit each IP to 500 requests per window
+// General platform API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     success: false,
-    message: 'Too many requests from this IP, please try again after 15 minutes.'
+    message: 'Too many requests. Please try again after 15 minutes.'
   }
 });
-app.use('/api', limiter);
+app.use('/api', apiLimiter);
 
-// Root & Health check endpoints
+// Serverless-ready DB connection middleware ensuring active cached connection
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Root & Health check
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'SmartPark API is running',
-    version: '1.0.0',
-    docs: '/api/docs'
+    message: 'SmartPark API is online',
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0'
   });
 });
 
@@ -57,22 +82,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// API Routes
+// Mount modular API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/lots', lotRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Handle 404 for undefined routes
+// Undefined API route 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
-    message: `Route ${req.originalUrl} not found`
+    message: `API Route ${req.originalUrl} not found`
   });
 });
 
-// Centralized error handler middleware
+// Centralized error handler
 app.use(errorHandler);
 
 module.exports = app;
-

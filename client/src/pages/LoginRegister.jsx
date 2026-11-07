@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -15,7 +15,13 @@ import {
 
 // Unified authentication page supporting Login, Registration, and 1-Click Demo profiles
 export default function LoginRegister({ initialMode = 'login' }) {
-  const [isLogin, setIsLogin] = useState(initialMode === 'login');
+  const location = useLocation();
+  const isRegisterRoute = location.pathname === '/register' || initialMode === 'register';
+  const [isLogin, setIsLogin] = useState(!isRegisterRoute);
+
+  useEffect(() => {
+    setIsLogin(location.pathname !== '/register');
+  }, [location.pathname]);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -28,8 +34,11 @@ export default function LoginRegister({ initialMode = 'login' }) {
 
   const { login, register, demoLogin } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const from = location.state?.from?.pathname || '/';
+
+  useEffect(() => {
+    document.title = isLogin ? 'Sign In — SmartPark' : 'Register Account — SmartPark';
+  }, [isLogin]);
 
   // Handle generic input state change
   const handleChange = (e) => {
@@ -269,3 +278,4 @@ export default function LoginRegister({ initialMode = 'login' }) {
     </div>
   );
 }
+

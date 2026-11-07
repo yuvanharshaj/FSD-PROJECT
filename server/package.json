@@ -4,9 +4,11 @@
   "description": "SmartPark Backend API - Smart Parking Reservation and Management System",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
     "seed": "node src/seed.js",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
     "test:smoke": "node test/smoke-test.js"
   },
   "keywords": [
