@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   Car,
@@ -10,8 +10,17 @@ import {
   EyeOff,
   Shield,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Check
 } from 'lucide-react';
+import {
+  validateName,
+  validateEmail,
+  validateVehicleNumber,
+  validatePassword,
+  getPasswordStrength,
+  formatVehicleNumber
+} from '../utils/validators';
 
 // Unified authentication page supporting Login, Registration, and 1-Click Demo profiles
 export default function LoginRegister({ initialMode = 'login' }) {
@@ -22,15 +31,23 @@ export default function LoginRegister({ initialMode = 'login' }) {
   useEffect(() => {
     setIsLogin(location.pathname !== '/register');
   }, [location.pathname]);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     vehicleNumber: ''
   });
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState({});
+
+  // Field input refs to focus the first invalid field on submit
+  const nameRef = useRef(null);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const vehicleRef = useRef(null);
 
   const { login, register, demoLogin } = useAuth();
   const navigate = useNavigate();
@@ -38,48 +55,138 @@ export default function LoginRegister({ initialMode = 'login' }) {
 
   useEffect(() => {
     document.title = isLogin ? 'Sign In — SmartPark' : 'Register Account — SmartPark';
+    // Clear errors when toggling between login and register
+    setErrors({});
+    setTouched({});
   }, [isLogin]);
 
-  // Handle generic input state change
+  // Handle input change and perform live validation if field was touched
   const handleChange = (e) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    if (errors[e.target.name]) {
-      setErrors(prev => ({ ...prev, [e.target.name]: '' }));
+    const { name, value } = e.target;
+    let nextValue = value;
+    if (name === 'vehicleNumber') {
+      nextValue = formatVehicleNumber(value);
+    }
+
+    setFormData(prev => ({ ...prev, [name]: nextValue }));
+
+    if (touched[name]) {
+      validateSingleField(name, nextValue);
     }
   };
 
-  // Perform inline validation before form submission
-  const validate = () => {
+  // Validate an individual field and update error state
+  const validateSingleField = (field, value) => {
+    let result = { isValid: true, message: '' };
+
+    if (field === 'name' && !isLogin) {
+      result = validateName(value);
+    } else if (field === 'email') {
+      result = validateEmail(value);
+    } else if (field === 'password') {
+      if (isLogin) {
+        result = { isValid: !!value.trim(), message: value.trim() ? '' : 'Password is required' };
+      } else {
+        result = validatePassword(value);
+      }
+    } else if (field === 'vehicleNumber' && !isLogin) {
+      result = validateVehicleNumber(value, false);
+    }
+
+    setErrors(prev => ({ ...prev, [field]: result.message }));
+    return result.isValid;
+  };
+
+  // Handle onBlur for inline validation
+  const handleBlur = (field) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+    validateSingleField(field, formData[field]);
+  };
+
+  // Perform full form validation across all active fields
+  const validateAll = () => {
     const newErrors = {};
-    if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please provide a valid email address';
+    const newTouched = {};
+
+    if (!isLogin) {
+      const nameCheck = validateName(formData.name);
+      if (!nameCheck.isValid) newErrors.name = nameCheck.message;
+      newTouched.name = true;
+
+      const vehicleCheck = validateVehicleNumber(formData.vehicleNumber, false);
+      if (!vehicleCheck.isValid) newErrors.vehicleNumber = vehicleCheck.message;
+      newTouched.vehicleNumber = true;
+
+      const passCheck = validatePassword(formData.password);
+      if (!passCheck.isValid) newErrors.password = passCheck.message;
+      newTouched.password = true;
+    } else {
+      if (!formData.password.trim()) newErrors.password = 'Password is required';
+      newTouched.password = true;
     }
-    if (!formData.password || formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-    if (!isLogin && !formData.name.trim()) {
-      newErrors.name = 'Please provide your full name';
-    }
+
+    const emailCheck = validateEmail(formData.email);
+    if (!emailCheck.isValid) newErrors.email = emailCheck.message;
+    newTouched.email = true;
+
     setErrors(newErrors);
+    setTouched(prev => ({ ...prev, ...newTouched }));
+
+    // Focus the first invalid field
+    if (newErrors.name && nameRef.current) {
+      nameRef.current.focus();
+    } else if (newErrors.email && emailRef.current) {
+      emailRef.current.focus();
+    } else if (newErrors.password && passwordRef.current) {
+      passwordRef.current.focus();
+    } else if (newErrors.vehicleNumber && vehicleRef.current) {
+      vehicleRef.current.focus();
+    }
+
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Form validity check for disabling submit button
+  const isFormValid = () => {
+    const emailValid = validateEmail(formData.email).isValid;
+    if (isLogin) {
+      return emailValid && !!formData.password.trim();
+    }
+    const nameValid = validateName(formData.name).isValid;
+    const passValid = validatePassword(formData.password).isValid;
+    const vehicleValid = validateVehicleNumber(formData.vehicleNumber, false).isValid;
+    return nameValid && emailValid && passValid && vehicleValid;
   };
 
   // Submit login or registration form
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validateAll()) return;
 
     setSubmitting(true);
     let result;
     if (isLogin) {
-      result = await login(formData.email, formData.password);
+      result = await login(formData.email.trim().toLowerCase(), formData.password);
     } else {
-      result = await register(formData);
+      const cleanVehicle = formData.vehicleNumber.replace(/\s+/g, '').toUpperCase();
+      result = await register({
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password,
+        vehicleNumber: cleanVehicle
+      });
     }
     setSubmitting(false);
 
     if (result.success) {
       navigate(from, { replace: true });
+    } else {
+      // If server reports email is already registered, display inline under email field
+      if (result.message && result.message.toLowerCase().includes('already registered')) {
+        setErrors(prev => ({ ...prev, email: 'This email is already registered' }));
+        setTouched(prev => ({ ...prev, email: true }));
+        if (emailRef.current) emailRef.current.focus();
+      }
     }
   };
 
@@ -92,6 +199,8 @@ export default function LoginRegister({ initialMode = 'login' }) {
       navigate(role === 'admin' ? '/admin' : from, { replace: true });
     }
   };
+
+  const passStrength = getPasswordStrength(formData.password);
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
@@ -183,15 +292,26 @@ export default function LoginRegister({ initialMode = 'login' }) {
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
+                    ref={nameRef}
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
+                    onBlur={() => handleBlur('name')}
                     placeholder="e.g. Yuvan Harsha"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className={`w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                      errors.name
+                        ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                        : touched.name && validateName(formData.name).isValid
+                        ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                        : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 focus:ring-indigo-500'
+                    }`}
                   />
+                  {touched.name && validateName(formData.name).isValid && (
+                    <Check className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3" />
+                  )}
                 </div>
-                {errors.name && <p className="text-[11px] text-rose-500">{errors.name}</p>}
+                {errors.name && <p className="text-[11px] text-red-500 font-medium">{errors.name}</p>}
               </div>
             )}
 
@@ -203,68 +323,117 @@ export default function LoginRegister({ initialMode = 'login' }) {
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
+                  ref={emailRef}
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  onBlur={() => handleBlur('email')}
                   placeholder="name@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className={`w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                    errors.email
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : touched.email && validateEmail(formData.email).isValid
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 focus:ring-indigo-500'
+                  }`}
                 />
+                {touched.email && validateEmail(formData.email).isValid && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3" />
+                )}
               </div>
-              {errors.email && <p className="text-[11px] text-rose-500">{errors.email}</p>}
+              {errors.email && <p className="text-[11px] text-red-500 font-medium">{errors.email}</p>}
             </div>
 
             {/* Password Field */}
             <div className="space-y-1 text-left">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Password
+                </label>
+                {!isLogin && formData.password && (
+                  <span className={`text-[10px] font-bold ${passStrength.color}`}>
+                    Strength: {passStrength.label}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
+                  ref={passwordRef}
                   type={showPassword ? 'text' : 'password'}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
+                  onBlur={() => handleBlur('password')}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className={`w-full pl-10 pr-16 py-2.5 rounded-xl border text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                    errors.password
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : touched.password && (isLogin ? formData.password.trim() : validatePassword(formData.password).isValid)
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 focus:ring-indigo-500'
+                  }`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                <div className="absolute right-3 top-3 flex items-center gap-1.5">
+                  {!isLogin && touched.password && validatePassword(formData.password).isValid && (
+                    <Check className="w-4 h-4 text-emerald-500" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-              {errors.password && <p className="text-[11px] text-rose-500">{errors.password}</p>}
+              {errors.password && <p className="text-[11px] text-red-500 font-medium">{errors.password}</p>}
+              {!isLogin && !errors.password && (
+                <p className="text-[11px] text-slate-400">
+                  Must be at least 8 characters with a letter and a number.
+                </p>
+              )}
             </div>
 
             {/* Vehicle Number (Register only) */}
             {!isLogin && (
               <div className="space-y-1 text-left">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  Vehicle Number (Optional)
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span>Vehicle Number (Optional)</span>
+                  <span className="text-[11px] text-slate-400">e.g. KA01AB1234</span>
                 </label>
                 <div className="relative">
                   <Car className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
+                    ref={vehicleRef}
                     type="text"
                     name="vehicleNumber"
                     value={formData.vehicleNumber}
                     onChange={handleChange}
-                    placeholder="e.g. KA-04-MK-5566"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase"
+                    onBlur={() => handleBlur('vehicleNumber')}
+                    placeholder="KA01AB1234"
+                    className={`w-full pl-10 pr-10 py-2.5 rounded-xl border text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 uppercase tracking-wider font-semibold ${
+                      errors.vehicleNumber
+                        ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                        : touched.vehicleNumber && formData.vehicleNumber && validateVehicleNumber(formData.vehicleNumber, false).isValid
+                        ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                        : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 focus:ring-indigo-500'
+                    }`}
                   />
+                  {formData.vehicleNumber && validateVehicleNumber(formData.vehicleNumber, false).isValid && (
+                    <Check className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3" />
+                  )}
                 </div>
+                {errors.vehicleNumber && <p className="text-[11px] text-red-500 font-medium">{errors.vehicleNumber}</p>}
               </div>
             )}
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
+              disabled={submitting || !isFormValid()}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>{submitting ? 'Please wait...' : isLogin ? 'Sign In to SmartPark' : 'Create My Account'}</span>
               <ArrowRight className="w-4 h-4" />
@@ -278,4 +447,3 @@ export default function LoginRegister({ initialMode = 'login' }) {
     </div>
   );
 }
-

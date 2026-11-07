@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../services/api';
 import StatCard from '../components/StatCard';
 import Modal from '../components/Modal';
@@ -20,7 +20,8 @@ import {
   Building,
   ChevronLeft,
   ChevronRight,
-  Filter
+  Filter,
+  Check
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -34,6 +35,7 @@ import {
   ComposedChart
 } from 'recharts';
 import toast from 'react-hot-toast';
+import { validateAdminLot } from '../utils/validators';
 
 // Comprehensive administrative dashboard featuring analytics charts, booking auditing, and lot management
 export default function AdminDashboard() {
@@ -62,6 +64,19 @@ export default function AdminDashboard() {
     openTime: '06:00',
     closeTime: '23:00'
   });
+  const [lotErrors, setLotErrors] = useState({});
+  const [lotTouched, setLotTouched] = useState({});
+
+  // Form field refs for focusing the first invalid field
+  const nameRef = useRef(null);
+  const addressRef = useRef(null);
+  const cityRef = useRef(null);
+  const priceRef = useRef(null);
+  const latRef = useRef(null);
+  const lngRef = useRef(null);
+  const openRef = useRef(null);
+  const closeRef = useRef(null);
+  const slotsRef = useRef(null);
 
   // Slot Maintenance Modal State
   const [selectedLotForSlots, setSelectedLotForSlots] = useState(null);
@@ -96,15 +111,51 @@ export default function AdminDashboard() {
     loadDashboardData();
   }, []);
 
-  // Save new parking lot or update existing lot with input validation
+  // Update a single lot form field and check validation
+  const handleLotFieldChange = (field, value) => {
+    const updated = { ...lotForm, [field]: value };
+    setLotForm(updated);
+    if (lotTouched[field]) {
+      const { errors } = validateAdminLot(updated);
+      setLotErrors(prev => ({ ...prev, [field]: errors[field] || '' }));
+    }
+  };
+
+  // Handle lot form blur
+  const handleLotBlur = (field) => {
+    setLotTouched(prev => ({ ...prev, [field]: true }));
+    const { errors } = validateAdminLot(lotForm);
+    setLotErrors(prev => ({ ...prev, [field]: errors[field] || '' }));
+  };
+
+  // Save new parking lot or update existing lot with strict input validation
   const handleSaveLot = async (e) => {
     e.preventDefault();
-    if (!lotForm.name.trim() || !lotForm.address.trim() || !lotForm.city.trim()) {
-      toast.error('Please fill in all required facility fields.');
-      return;
-    }
-    if (lotForm.pricePerHour <= 0) {
-      toast.error('Hourly rate must be greater than zero.');
+    const { isValid, errors } = validateAdminLot(lotForm);
+
+    setLotTouched({
+      name: true,
+      address: true,
+      city: true,
+      pricePerHour: true,
+      lat: true,
+      lng: true,
+      openTime: true,
+      closeTime: true,
+      totalSlots: true
+    });
+    setLotErrors(errors);
+
+    if (!isValid) {
+      if (errors.name && nameRef.current) nameRef.current.focus();
+      else if (errors.address && addressRef.current) addressRef.current.focus();
+      else if (errors.city && cityRef.current) cityRef.current.focus();
+      else if (errors.pricePerHour && priceRef.current) priceRef.current.focus();
+      else if (errors.lat && latRef.current) latRef.current.focus();
+      else if (errors.lng && lngRef.current) lngRef.current.focus();
+      else if (errors.openTime && openRef.current) openRef.current.focus();
+      else if (errors.closeTime && closeRef.current) closeRef.current.focus();
+      else if (errors.totalSlots && slotsRef.current) slotsRef.current.focus();
       return;
     }
 
@@ -118,6 +169,8 @@ export default function AdminDashboard() {
       }
       setShowLotModal(false);
       setEditingLot(null);
+      setLotErrors({});
+      setLotTouched({});
       loadDashboardData();
     } catch (err) {
       console.error('Lot save failed:', err);
@@ -523,106 +576,271 @@ export default function AdminDashboard() {
         title={editingLot ? 'Edit Parking Facility' : 'Add New Parking Facility'}
       >
         <form onSubmit={handleSaveLot} className="space-y-4 text-xs text-left">
+          {/* Facility Name */}
           <div className="space-y-1">
             <label className="font-semibold text-slate-700 dark:text-slate-300">Facility Name</label>
-            <input
-              type="text"
-              required
-              value={lotForm.name}
-              onChange={(e) => setLotForm({ ...lotForm, name: e.target.value })}
-              placeholder="e.g. Koramangala 6th Block Hub"
-              className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-            />
+            <div className="relative">
+              <input
+                ref={nameRef}
+                type="text"
+                required
+                value={lotForm.name}
+                onChange={(e) => handleLotFieldChange('name', e.target.value)}
+                onBlur={() => handleLotBlur('name')}
+                placeholder="e.g. Koramangala 6th Block Hub"
+                className={`w-full p-2.5 pr-9 rounded-xl border ${
+                  lotErrors.name
+                    ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                    : lotTouched.name && !lotErrors.name
+                    ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                    : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                }`}
+              />
+              {lotTouched.name && !lotErrors.name && lotForm.name && (
+                <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+              )}
+            </div>
+            {lotErrors.name && <p className="text-[11px] text-red-500 font-medium">{lotErrors.name}</p>}
           </div>
 
+          {/* Address */}
           <div className="space-y-1">
             <label className="font-semibold text-slate-700 dark:text-slate-300">Address</label>
-            <input
-              type="text"
-              required
-              value={lotForm.address}
-              onChange={(e) => setLotForm({ ...lotForm, address: e.target.value })}
-              placeholder="e.g. 100ft Road, Koramangala"
-              className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-            />
+            <div className="relative">
+              <input
+                ref={addressRef}
+                type="text"
+                required
+                value={lotForm.address}
+                onChange={(e) => handleLotFieldChange('address', e.target.value)}
+                onBlur={() => handleLotBlur('address')}
+                placeholder="e.g. 100ft Road, Koramangala"
+                className={`w-full p-2.5 pr-9 rounded-xl border ${
+                  lotErrors.address
+                    ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                    : lotTouched.address && !lotErrors.address
+                    ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                    : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                }`}
+              />
+              {lotTouched.address && !lotErrors.address && lotForm.address && (
+                <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+              )}
+            </div>
+            {lotErrors.address && <p className="text-[11px] text-red-500 font-medium">{lotErrors.address}</p>}
           </div>
 
+          {/* City and Price */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="font-semibold text-slate-700 dark:text-slate-300">City</label>
-              <input
-                type="text"
-                required
-                value={lotForm.city}
-                onChange={(e) => setLotForm({ ...lotForm, city: e.target.value })}
-                className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-              />
+              <div className="relative">
+                <input
+                  ref={cityRef}
+                  type="text"
+                  required
+                  value={lotForm.city}
+                  onChange={(e) => handleLotFieldChange('city', e.target.value)}
+                  onBlur={() => handleLotBlur('city')}
+                  placeholder="e.g. Bengaluru"
+                  className={`w-full p-2.5 pr-9 rounded-xl border ${
+                    lotErrors.city
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : lotTouched.city && !lotErrors.city
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                />
+                {lotTouched.city && !lotErrors.city && lotForm.city && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {lotErrors.city && <p className="text-[11px] text-red-500 font-medium">{lotErrors.city}</p>}
             </div>
 
             <div className="space-y-1">
               <label className="font-semibold text-slate-700 dark:text-slate-300">Price Per Hour (₹)</label>
-              <input
-                type="number"
-                required
-                min="10"
-                value={lotForm.pricePerHour}
-                onChange={(e) => setLotForm({ ...lotForm, pricePerHour: Number(e.target.value) })}
-                className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-              />
+              <div className="relative">
+                <input
+                  ref={priceRef}
+                  type="number"
+                  required
+                  value={lotForm.pricePerHour}
+                  onChange={(e) => handleLotFieldChange('pricePerHour', e.target.value)}
+                  onBlur={() => handleLotBlur('pricePerHour')}
+                  placeholder="e.g. 50"
+                  className={`w-full p-2.5 pr-9 rounded-xl border ${
+                    lotErrors.pricePerHour
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : lotTouched.pricePerHour && !lotErrors.pricePerHour
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                />
+                {lotTouched.pricePerHour && !lotErrors.pricePerHour && lotForm.pricePerHour && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {lotErrors.pricePerHour && <p className="text-[11px] text-red-500 font-medium">{lotErrors.pricePerHour}</p>}
             </div>
           </div>
 
+          {/* Latitude and Longitude */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Open Time</label>
-              <input
-                type="text"
-                required
-                value={lotForm.openTime}
-                onChange={(e) => setLotForm({ ...lotForm, openTime: e.target.value })}
-                placeholder="06:00"
-                className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-              />
+              <label className="font-semibold text-slate-700 dark:text-slate-300">Latitude (-90 to 90)</label>
+              <div className="relative">
+                <input
+                  ref={latRef}
+                  type="number"
+                  step="any"
+                  required
+                  value={lotForm.lat}
+                  onChange={(e) => handleLotFieldChange('lat', e.target.value)}
+                  onBlur={() => handleLotBlur('lat')}
+                  placeholder="12.9716"
+                  className={`w-full p-2.5 pr-9 rounded-xl border ${
+                    lotErrors.lat
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : lotTouched.lat && !lotErrors.lat
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                />
+                {lotTouched.lat && !lotErrors.lat && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {lotErrors.lat && <p className="text-[11px] text-red-500 font-medium">{lotErrors.lat}</p>}
             </div>
 
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Close Time</label>
-              <input
-                type="text"
-                required
-                value={lotForm.closeTime}
-                onChange={(e) => setLotForm({ ...lotForm, closeTime: e.target.value })}
-                placeholder="23:00"
-                className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-              />
+              <label className="font-semibold text-slate-700 dark:text-slate-300">Longitude (-180 to 180)</label>
+              <div className="relative">
+                <input
+                  ref={lngRef}
+                  type="number"
+                  step="any"
+                  required
+                  value={lotForm.lng}
+                  onChange={(e) => handleLotFieldChange('lng', e.target.value)}
+                  onBlur={() => handleLotBlur('lng')}
+                  placeholder="77.5946"
+                  className={`w-full p-2.5 pr-9 rounded-xl border ${
+                    lotErrors.lng
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : lotTouched.lng && !lotErrors.lng
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                />
+                {lotTouched.lng && !lotErrors.lng && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {lotErrors.lng && <p className="text-[11px] text-red-500 font-medium">{lotErrors.lng}</p>}
+            </div>
+          </div>
+
+          {/* Operating Hours */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700 dark:text-slate-300">Open Time (HH:MM)</label>
+              <div className="relative">
+                <input
+                  ref={openRef}
+                  type="text"
+                  required
+                  value={lotForm.openTime}
+                  onChange={(e) => handleLotFieldChange('openTime', e.target.value)}
+                  onBlur={() => handleLotBlur('openTime')}
+                  placeholder="06:00"
+                  className={`w-full p-2.5 pr-9 rounded-xl border ${
+                    lotErrors.openTime
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : lotTouched.openTime && !lotErrors.openTime
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                />
+                {lotTouched.openTime && !lotErrors.openTime && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {lotErrors.openTime && <p className="text-[11px] text-red-500 font-medium">{lotErrors.openTime}</p>}
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-slate-700 dark:text-slate-300">Close Time (HH:MM)</label>
+              <div className="relative">
+                <input
+                  ref={closeRef}
+                  type="text"
+                  required
+                  value={lotForm.closeTime}
+                  onChange={(e) => handleLotFieldChange('closeTime', e.target.value)}
+                  onBlur={() => handleLotBlur('closeTime')}
+                  placeholder="23:00"
+                  className={`w-full p-2.5 pr-9 rounded-xl border ${
+                    lotErrors.closeTime
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : lotTouched.closeTime && !lotErrors.closeTime
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                />
+                {lotTouched.closeTime && !lotErrors.closeTime && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {lotErrors.closeTime && <p className="text-[11px] text-red-500 font-medium">{lotErrors.closeTime}</p>}
             </div>
           </div>
 
           {!editingLot && (
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">Total Slots to Auto-Create</label>
-              <input
-                type="number"
-                min="5"
-                max="100"
-                value={lotForm.totalSlots}
-                onChange={(e) => setLotForm({ ...lotForm, totalSlots: Number(e.target.value) })}
-                className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-              />
+              <label className="font-semibold text-slate-700 dark:text-slate-300">Total Slots (1 to 500)</label>
+              <div className="relative">
+                <input
+                  ref={slotsRef}
+                  type="number"
+                  min="1"
+                  max="500"
+                  value={lotForm.totalSlots}
+                  onChange={(e) => handleLotFieldChange('totalSlots', e.target.value)}
+                  onBlur={() => handleLotBlur('totalSlots')}
+                  className={`w-full p-2.5 pr-9 rounded-xl border ${
+                    lotErrors.totalSlots
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : lotTouched.totalSlots && !lotErrors.totalSlots
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                  }`}
+                />
+                {lotTouched.totalSlots && !lotErrors.totalSlots && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {lotErrors.totalSlots && <p className="text-[11px] text-red-500 font-medium">{lotErrors.totalSlots}</p>}
             </div>
           )}
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
             <button
               type="button"
-              onClick={() => setShowLotModal(false)}
+              onClick={() => {
+                setShowLotModal(false);
+                setLotErrors({});
+                setLotTouched({});
+              }}
               className="px-4 py-2 text-slate-600 dark:text-slate-400"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold"
+              disabled={!validateAdminLot(lotForm).isValid}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {editingLot ? 'Save Changes' : 'Create Facility'}
             </button>

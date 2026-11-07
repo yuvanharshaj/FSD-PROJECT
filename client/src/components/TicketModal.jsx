@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import Modal from './Modal';
-import { Printer, MapPin, Calendar, Car, CheckCircle2, Ticket } from 'lucide-react';
+import { Printer, MapPin, Calendar, Car, CheckCircle2, Ticket, Download } from 'lucide-react';
+import { downloadPdfTicket } from '../utils/pdfTicket';
 
-// Printable QR parking ticket modal with entry pass verification code
-export default function TicketModal({ isOpen, onClose, booking }) {
+// Printable QR parking ticket modal with entry pass verification code & PDF download
+export default function TicketModal({ isOpen, onClose, booking, user = null }) {
+  const [downloading, setDownloading] = useState(false);
   if (!booking) return null;
 
   const lotName = booking.lot?.name || 'Parking Facility';
@@ -22,6 +24,13 @@ export default function TicketModal({ isOpen, onClose, booking }) {
   // Trigger browser print dialog for the parking pass
   const handlePrint = () => {
     window.print();
+  };
+
+  // Download official A5 PDF parking pass
+  const handleDownloadPdf = async () => {
+    setDownloading(true);
+    await downloadPdfTicket(booking, user);
+    setDownloading(false);
   };
 
   return (
@@ -90,11 +99,20 @@ export default function TicketModal({ isOpen, onClose, booking }) {
         </div>
 
         {/* Action Controls */}
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={downloading}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow transition-all active:scale-95 disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" />
+            <span>{downloading ? 'Downloading...' : 'Download PDF Ticket'}</span>
+          </button>
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow transition-all active:scale-95"
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
             <Printer className="w-4 h-4" />
             <span>Print Pass</span>
@@ -112,4 +130,3 @@ export default function TicketModal({ isOpen, onClose, booking }) {
     </Modal>
   );
 }
-

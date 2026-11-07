@@ -1,5 +1,4 @@
 const express = require('express');
-const { body } = require('express-validator');
 const {
   getLots,
   getLotById,
@@ -10,6 +9,7 @@ const {
   toggleSlotMaintenance
 } = require('../controllers/lotController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { validateLot } = require('../middleware/validators');
 
 const router = express.Router();
 
@@ -27,6 +27,7 @@ router.post(
   '/',
   authenticate,
   authorize('admin'),
+  validateLot,
   createLot
 );
 
@@ -35,6 +36,7 @@ router.put(
   '/:id',
   authenticate,
   authorize('admin'),
+  validateLot,
   updateLot
 );
 
@@ -55,4 +57,3 @@ router.patch(
 );
 
 module.exports = router;
-

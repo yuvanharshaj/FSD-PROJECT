@@ -24,7 +24,7 @@ const register = async (req, res, next) => {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'An account with this email already exists.'
+        message: 'This email is already registered'
       });
     }
 

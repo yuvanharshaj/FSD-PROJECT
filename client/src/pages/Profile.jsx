@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Mail, Car, Lock, KeyRound, Ticket, LogOut, CheckCircle } from 'lucide-react';
+import { User, Mail, Car, Lock, KeyRound, Ticket, LogOut, Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import {
+  validateName,
+  validateVehicleNumber,
+  validatePassword,
+  getPasswordStrength,
+  formatVehicleNumber
+} from '../utils/validators';
 
 // User account profile and vehicle registration management page
 export default function Profile() {
@@ -15,25 +22,73 @@ export default function Profile() {
   // Profile Form state
   const [name, setName] = useState(user?.name || '');
   const [vehicleNumber, setVehicleNumber] = useState(user?.vehicleNumber || '');
+  const [profileErrors, setProfileErrors] = useState({});
+  const [profileTouched, setProfileTouched] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Password Form state
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [passwordTouched, setPasswordTouched] = useState({});
   const [savingPassword, setSavingPassword] = useState(false);
+
+  // Refs for first invalid field focusing
+  const nameRef = useRef(null);
+  const vehicleRef = useRef(null);
+  const currentPassRef = useRef(null);
+  const newPassRef = useRef(null);
+  const confirmPassRef = useRef(null);
+
+  // Handle name change
+  const handleNameChange = (e) => {
+    const val = e.target.value;
+    setName(val);
+    if (profileTouched.name) {
+      const check = validateName(val);
+      setProfileErrors(prev => ({ ...prev, name: check.message }));
+    }
+  };
+
+  // Handle vehicle change
+  const handleVehicleChange = (e) => {
+    const val = formatVehicleNumber(e.target.value);
+    setVehicleNumber(val);
+    if (profileTouched.vehicleNumber) {
+      const check = validateVehicleNumber(val, false);
+      setProfileErrors(prev => ({ ...prev, vehicleNumber: check.message }));
+    }
+  };
 
   // Save updated name and vehicle plate
   const handleSaveProfile = async (e) => {
     e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Please enter your full name.');
+    setProfileTouched({ name: true, vehicleNumber: true });
+
+    const nameCheck = validateName(name);
+    const vehicleCheck = validateVehicleNumber(vehicleNumber, false);
+
+    const newErrors = {};
+    if (!nameCheck.isValid) newErrors.name = nameCheck.message;
+    if (!vehicleCheck.isValid) newErrors.vehicleNumber = vehicleCheck.message;
+
+    setProfileErrors(newErrors);
+
+    if (newErrors.name && nameRef.current) {
+      nameRef.current.focus();
       return;
     }
+    if (newErrors.vehicleNumber && vehicleRef.current) {
+      vehicleRef.current.focus();
+      return;
+    }
+    if (Object.keys(newErrors).length > 0) return;
+
     setSavingProfile(true);
     await updateProfile({
       name: name.trim(),
-      vehicleNumber: vehicleNumber.trim().toUpperCase()
+      vehicleNumber: vehicleNumber.replace(/\s+/g, '').toUpperCase()
     });
     setSavingProfile(false);
   };
@@ -41,14 +96,38 @@ export default function Profile() {
   // Change password verifying current password
   const handleChangePassword = async (e) => {
     e.preventDefault();
+    setPasswordTouched({ current: true, new: true, confirm: true });
+
+    const newErrors = {};
+    if (!currentPassword) {
+      newErrors.current = 'Current password is required';
+    }
+
+    const passCheck = validatePassword(newPassword);
+    if (!passCheck.isValid) {
+      newErrors.new = passCheck.message;
+    }
+
     if (newPassword !== confirmPassword) {
-      toast.error('New passwords do not match.');
+      newErrors.confirm = 'New passwords do not match';
+    }
+
+    setPasswordErrors(newErrors);
+
+    if (newErrors.current && currentPassRef.current) {
+      currentPassRef.current.focus();
       return;
     }
-    if (newPassword.length < 6) {
-      toast.error('New password must be at least 6 characters.');
+    if (newErrors.new && newPassRef.current) {
+      newPassRef.current.focus();
       return;
     }
+    if (newErrors.confirm && confirmPassRef.current) {
+      confirmPassRef.current.focus();
+      return;
+    }
+    if (Object.keys(newErrors).length > 0) return;
+
     setSavingPassword(true);
     const res = await changePassword(currentPassword, newPassword);
     setSavingPassword(false);
@@ -56,8 +135,24 @@ export default function Profile() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setPasswordTouched({});
+      setPasswordErrors({});
     }
   };
+
+  const isProfileValid = () => {
+    return validateName(name).isValid && validateVehicleNumber(vehicleNumber, false).isValid;
+  };
+
+  const isPasswordValid = () => {
+    return (
+      !!currentPassword &&
+      validatePassword(newPassword).isValid &&
+      newPassword === confirmPassword
+    );
+  };
+
+  const passStrength = getPasswordStrength(newPassword);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
@@ -101,33 +196,69 @@ export default function Profile() {
           <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
             <div className="space-y-1">
               <label className="font-semibold text-slate-700 dark:text-slate-300">Full Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-              />
+              <div className="relative">
+                <input
+                  ref={nameRef}
+                  type="text"
+                  required
+                  value={name}
+                  onChange={handleNameChange}
+                  onBlur={() => {
+                    setProfileTouched(p => ({ ...p, name: true }));
+                    const check = validateName(name);
+                    setProfileErrors(p => ({ ...p, name: check.message }));
+                  }}
+                  className={`w-full px-3.5 pr-9 py-2.5 rounded-xl border text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                    profileErrors.name
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : profileTouched.name && validateName(name).isValid
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500'
+                  }`}
+                />
+                {profileTouched.name && validateName(name).isValid && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {profileErrors.name && <p className="text-[11px] text-red-500">{profileErrors.name}</p>}
             </div>
 
             <div className="space-y-1">
               <div className="flex justify-between items-center">
                 <label className="font-semibold text-slate-700 dark:text-slate-300">Vehicle Plate Number</label>
-                <span className="text-[10px] text-slate-400">Format: KA01AB1234</span>
+                <span className="text-[10px] text-slate-400">e.g. KA01AB1234</span>
               </div>
-              <input
-                type="text"
-                value={vehicleNumber}
-                onChange={(e) => setVehicleNumber(e.target.value)}
-                placeholder="e.g. KA04MK5566"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 uppercase font-mono font-bold text-slate-900 dark:text-white"
-              />
+              <div className="relative">
+                <input
+                  ref={vehicleRef}
+                  type="text"
+                  value={vehicleNumber}
+                  onChange={handleVehicleChange}
+                  onBlur={() => {
+                    setProfileTouched(p => ({ ...p, vehicleNumber: true }));
+                    const check = validateVehicleNumber(vehicleNumber, false);
+                    setProfileErrors(p => ({ ...p, vehicleNumber: check.message }));
+                  }}
+                  placeholder="e.g. KA04MK5566"
+                  className={`w-full px-3.5 pr-9 py-2.5 rounded-xl border uppercase font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                    profileErrors.vehicleNumber
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : profileTouched.vehicleNumber && vehicleNumber && validateVehicleNumber(vehicleNumber, false).isValid
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500'
+                  }`}
+                />
+                {vehicleNumber && validateVehicleNumber(vehicleNumber, false).isValid && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-3" />
+                )}
+              </div>
+              {profileErrors.vehicleNumber && <p className="text-[11px] text-red-500">{profileErrors.vehicleNumber}</p>}
             </div>
 
             <button
               type="submit"
-              disabled={savingProfile}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow transition-all active:scale-95 disabled:opacity-50"
+              disabled={savingProfile || !isProfileValid()}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savingProfile ? 'Saving...' : 'Save Profile Changes'}
             </button>
@@ -147,46 +278,119 @@ export default function Profile() {
           <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
             <div className="space-y-1">
               <label className="font-semibold text-slate-700 dark:text-slate-300">Current Password</label>
-              <input
-                type="password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-              />
+              <div className="relative">
+                <input
+                  ref={currentPassRef}
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => {
+                    setCurrentPassword(e.target.value);
+                    if (passwordTouched.current) {
+                      setPasswordErrors(p => ({ ...p, current: e.target.value ? '' : 'Current password is required' }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setPasswordTouched(p => ({ ...p, current: true }));
+                    setPasswordErrors(p => ({ ...p, current: currentPassword ? '' : 'Current password is required' }));
+                  }}
+                  placeholder="••••••••"
+                  className={`w-full px-3.5 pr-9 py-2 rounded-xl border text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                    passwordErrors.current
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : passwordTouched.current && currentPassword
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500'
+                  }`}
+                />
+                {passwordTouched.current && currentPassword && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-2.5" />
+                )}
+              </div>
+              {passwordErrors.current && <p className="text-[11px] text-red-500">{passwordErrors.current}</p>}
             </div>
 
             <div className="space-y-1">
-              <label className="font-semibold text-slate-700 dark:text-slate-300">New Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-              />
+              <div className="flex justify-between items-center">
+                <label className="font-semibold text-slate-700 dark:text-slate-300">New Password</label>
+                {newPassword && (
+                  <span className={`text-[10px] font-bold ${passStrength.color}`}>
+                    Strength: {passStrength.label}
+                  </span>
+                )}
+              </div>
+              <div className="relative">
+                <input
+                  ref={newPassRef}
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value);
+                    if (passwordTouched.new) {
+                      const check = validatePassword(e.target.value);
+                      setPasswordErrors(p => ({ ...p, new: check.message }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setPasswordTouched(p => ({ ...p, new: true }));
+                    const check = validatePassword(newPassword);
+                    setPasswordErrors(p => ({ ...p, new: check.message }));
+                  }}
+                  placeholder="Min 8 chars with letter & number"
+                  className={`w-full px-3.5 pr-9 py-2 rounded-xl border text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                    passwordErrors.new
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : passwordTouched.new && validatePassword(newPassword).isValid
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500'
+                  }`}
+                />
+                {passwordTouched.new && validatePassword(newPassword).isValid && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-2.5" />
+                )}
+              </div>
+              {passwordErrors.new && <p className="text-[11px] text-red-500">{passwordErrors.new}</p>}
             </div>
 
             <div className="space-y-1">
               <label className="font-semibold text-slate-700 dark:text-slate-300">Confirm New Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repeat new password"
-                className="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
-              />
+              <div className="relative">
+                <input
+                  ref={confirmPassRef}
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    if (passwordTouched.confirm) {
+                      setPasswordErrors(p => ({ ...p, confirm: e.target.value === newPassword ? '' : 'New passwords do not match' }));
+                    }
+                  }}
+                  onBlur={() => {
+                    setPasswordTouched(p => ({ ...p, confirm: true }));
+                    setPasswordErrors(p => ({ ...p, confirm: confirmPassword === newPassword ? '' : 'New passwords do not match' }));
+                  }}
+                  placeholder="Repeat new password"
+                  className={`w-full px-3.5 pr-9 py-2 rounded-xl border text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
+                    passwordErrors.confirm
+                      ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 focus:ring-red-500'
+                      : passwordTouched.confirm && confirmPassword && confirmPassword === newPassword
+                      ? 'border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 focus:ring-emerald-500'
+                      : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-indigo-500'
+                  }`}
+                />
+                {passwordTouched.confirm && confirmPassword && confirmPassword === newPassword && (
+                  <Check className="w-4 h-4 text-emerald-500 absolute right-3 top-2.5" />
+                )}
+              </div>
+              {passwordErrors.confirm && <p className="text-[11px] text-red-500">{passwordErrors.confirm}</p>}
             </div>
 
             <button
               type="submit"
-              disabled={savingPassword}
-              className="w-full py-2.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50"
+              disabled={savingPassword || !isPasswordValid()}
+              className="w-full py-2.5 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {savingPassword ? 'Updating...' : 'Update Password'}
             </button>

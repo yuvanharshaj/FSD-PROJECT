@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import BookingCard from '../components/BookingCard';
 import TicketModal from '../components/TicketModal';
@@ -9,6 +10,7 @@ import toast from 'react-hot-toast';
 
 // User reservation history and management dashboard with status categorization tabs
 export default function MyBookings() {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('upcoming'); // 'upcoming', 'past', 'cancelled'
@@ -168,6 +170,7 @@ export default function MyBookings() {
         isOpen={!!activeTicket}
         onClose={() => setActiveTicket(null)}
         booking={activeTicket}
+        user={user}
       />
 
     </div>

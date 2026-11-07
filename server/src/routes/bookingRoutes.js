@@ -1,5 +1,4 @@
 const express = require('express');
-const { body } = require('express-validator');
 const {
   createBooking,
   getMyBookings,
@@ -7,6 +6,7 @@ const {
   getAllBookings
 } = require('../controllers/bookingController');
 const { authenticate, authorize } = require('../middleware/auth');
+const { validateCreateBooking } = require('../middleware/validators');
 
 const router = express.Router();
 
@@ -20,13 +20,7 @@ router.get('/', authenticate, authorize('admin'), getAllBookings);
 router.post(
   '/',
   authenticate,
-  [
-    body('lotId').notEmpty().withMessage('lotId is required'),
-    body('slotId').notEmpty().withMessage('slotId is required'),
-    body('vehicleNumber').trim().notEmpty().withMessage('vehicleNumber is required'),
-    body('startTime').isISO8601().withMessage('Valid ISO startTime is required'),
-    body('endTime').isISO8601().withMessage('Valid ISO endTime is required')
-  ],
+  validateCreateBooking,
   createBooking
 );
 
@@ -34,4 +28,3 @@ router.post(
 router.patch('/:id/cancel', authenticate, cancelBooking);
 
 module.exports = router;
-
