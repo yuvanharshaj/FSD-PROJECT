@@ -5,9 +5,13 @@
 
 ### Slide 1: Title & Introduction
 - **Project Title**: **SmartPark** — Smart Parking Reservation and Management System
-- **Subject**: Full Stack Web Development (5th Semester Case Study)
-- **Tech Stack**: React 18, Vite, Tailwind CSS, Node.js, Express.js, MongoDB (Mongoose), JWT, Docker
-- **Repository**: [https://github.com/yuvanharshaj/FSD-PROJECT](https://github.com/yuvanharshaj/FSD-PROJECT)
+- **Subject**: Full Stack Development (Course Code: 24CS55A, 5th Semester Case Study)
+- **Student Name**: Yuvan Harshaj (USN: 1EP24CS181, Section: CSE-C)
+- **Faculty Guide**: Mrs. Sunil Savalsang, Assistant Professor, Dept. of CSE, EPCET
+- **Tech Stack**: React 18, Vite, Tailwind CSS, Node.js, Express.js, MongoDB Atlas (Mongoose), JWT
+- **Live Production Application**: [https://smartpark-client.vercel.app](https://smartpark-client.vercel.app)
+- **Live Backend API**: [https://smartpark-server.vercel.app/api](https://smartpark-server.vercel.app/api)
+- **GitHub Repository**: [https://github.com/yuvanharshaj/FSD-PROJECT](https://github.com/yuvanharshaj/FSD-PROJECT)
 
 ---
 
