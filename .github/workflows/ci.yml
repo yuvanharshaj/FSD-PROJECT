@@ -35,3 +35,4 @@ jobs:
 
       - name: Build React Client (Vite)
         run: npm run build
+

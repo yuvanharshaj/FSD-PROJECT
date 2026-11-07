@@ -71,3 +71,4 @@ In your Vercel Dashboard for the **Client Project** (`Root Directory: client`), 
 - **404 on Browser Refresh**: Handled automatically by `/client/vercel.json` with single-page rewrite to `/index.html`.
 - **Database Connection Timeouts (`MongoServerSelectionError`)**: Ensure `0.0.0.0/0` is active in MongoDB Atlas **Network Access**, and that the user password does not contain unencoded special characters.
 - **Missing Environment Variables**: In serverless functions, environment variable changes only apply to *new* deployments. Go to **Deployments > ... > Redeploy** after modifying any variables.
+
