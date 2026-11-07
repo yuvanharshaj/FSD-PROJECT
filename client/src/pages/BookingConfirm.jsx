@@ -208,6 +208,7 @@ export default function BookingConfirm() {
                 <Car className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
                   ref={vehicleInputRef}
+                  name="vehicleNumber"
                   type="text"
                   required
                   value={vehicleNumber}

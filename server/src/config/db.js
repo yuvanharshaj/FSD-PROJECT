@@ -1,4 +1,8 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {}
 
 // Global cache for serverless environments (e.g. Vercel)
 let cached = global.mongoose;

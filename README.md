@@ -1,5 +1,17 @@
 # SmartPark — Smart Parking Reservation & Management System
 
+> **Live Production App**: [https://smartpark-client.vercel.app](https://smartpark-client.vercel.app)  
+> **Live API Base URL**: [https://smartpark-server.vercel.app/api](https://smartpark-server.vercel.app/api)  
+> **Database**: MongoDB Atlas M0 Cluster (`AP_SOUTH_1` Mumbai)
+
+### 🚀 Instant Demo Credentials (1-Click in UI)
+| Role | Email | Password | Quick Action |
+| :--- | :--- | :--- | :--- |
+| **Driver / User** | `user@smartpark.com` | `User@123` | Click **"Try as Driver"** on `/login` |
+| **System Admin** | `admin@smartpark.com` | `Admin@123` | Click **"Try as Admin"** on `/login` |
+
+---
+
 SmartPark is an end-to-end full stack smart parking solution designed to streamline urban parking slot discovery, real-time availability tracking, digital reservation management, and admin oversight.
 
 ---

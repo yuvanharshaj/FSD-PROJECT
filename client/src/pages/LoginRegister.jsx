@@ -51,7 +51,7 @@ export default function LoginRegister({ initialMode = 'login' }) {
 
   const { login, register, demoLogin } = useAuth();
   const navigate = useNavigate();
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname || '/find';
 
   useEffect(() => {
     document.title = isLogin ? 'Sign In — SmartPark' : 'Register Account — SmartPark';
