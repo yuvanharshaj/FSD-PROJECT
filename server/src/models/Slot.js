@@ -32,3 +32,4 @@ const slotSchema = new mongoose.Schema(
 slotSchema.index({ lot: 1, slotNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model('Slot', slotSchema);
+

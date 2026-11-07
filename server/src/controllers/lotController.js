@@ -241,11 +241,39 @@ const getLotSlots = async (req, res, next) => {
   }
 };
 
+// Toggle slot maintenance status between available and maintenance (Admin only)
+const toggleSlotMaintenance = async (req, res, next) => {
+  try {
+    const { slotId } = req.params;
+    const slot = await Slot.findById(slotId);
+
+    if (!slot) {
+      return res.status(404).json({
+        success: false,
+        message: 'Slot not found'
+      });
+    }
+
+    slot.status = slot.status === 'maintenance' ? 'available' : 'maintenance';
+    await slot.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Slot ${slot.slotNumber} is now ${slot.status}.`,
+      slot
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getLots,
   getLotById,
   createLot,
   updateLot,
   deleteLot,
-  getLotSlots
+  getLotSlots,
+  toggleSlotMaintenance
 };
+

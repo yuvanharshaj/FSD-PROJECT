@@ -8,3 +8,4 @@ const router = express.Router();
 router.get('/stats', authenticate, authorize('admin'), getAdminStats);
 
 module.exports = router;
+

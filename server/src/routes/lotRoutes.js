@@ -6,7 +6,8 @@ const {
   createLot,
   updateLot,
   deleteLot,
-  getLotSlots
+  getLotSlots,
+  toggleSlotMaintenance
 } = require('../controllers/lotController');
 const { authenticate, authorize } = require('../middleware/auth');
 
@@ -45,4 +46,13 @@ router.delete(
   deleteLot
 );
 
+// Route: Toggle slot maintenance (admin only)
+router.patch(
+  '/:id/slots/:slotId/toggle-maintenance',
+  authenticate,
+  authorize('admin'),
+  toggleSlotMaintenance
+);
+
 module.exports = router;
+

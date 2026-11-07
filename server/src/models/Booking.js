@@ -57,3 +57,4 @@ bookingSchema.index({ slot: 1, status: 1, startTime: 1, endTime: 1 });
 bookingSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Booking', bookingSchema);
+

@@ -68,3 +68,4 @@ npm run test:smoke
   - Cancellation rules (owners/admins can cancel only before the booking start time).
 - **Background Cron**: Runs every minute with `node-cron` to automatically mark finished bookings as `completed`.
 - **Admin Analytics**: Live dashboard metrics for today's revenue, occupancy rate, total bookings, and 7-day revenue/booking history.
+

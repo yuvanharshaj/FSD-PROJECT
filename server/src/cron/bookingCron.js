@@ -38,3 +38,4 @@ const stopBookingCron = () => {
 };
 
 module.exports = { startBookingCron, stopBookingCron };
+

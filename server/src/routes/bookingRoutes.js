@@ -34,3 +34,4 @@ router.post(
 router.patch('/:id/cancel', authenticate, cancelBooking);
 
 module.exports = router;
+
