@@ -172,3 +172,4 @@ erDiagram
 - **Automated License Plate Recognition (ANPR)**: Camera-based automated check-in and check-out.
 - **Dynamic Pricing & EV Charging**: Peak-hour pricing algorithms and kilowatt-hour tracking for EV slots.
 - **Conclusion**: SmartPark demonstrates an enterprise-grade, production-hardened Full Stack application that solves real urban logistics problems with zero setup friction and modern engineering standards.
+

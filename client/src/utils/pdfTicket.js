@@ -198,3 +198,4 @@ export const downloadPdfTicket = async (booking, user = null) => {
     return false;
   }
 };
+
