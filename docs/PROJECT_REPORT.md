@@ -191,3 +191,4 @@ The project enforces quality through two automated test suites:
 
 ### Q5: How does the local zero-setup database function without MongoDB installed?
 > **Answer**: When `process.env.MONGO_URI` is blank and `NODE_ENV !== 'production'`, the server automatically initializes `mongodb-memory-server`, which downloads and boots an in-memory binary on a dynamic loopback port. The database seeder then populates 4 Bengaluru parking facilities and 130 slots, allowing any evaluator to clone and run the application instantly with zero configuration.
+
